@@ -5,7 +5,7 @@
 		}
 	},
 	"get": {
-    "ambihue_status": {
+		"ambihue_status": {
 			"path": "HueLamp/power"
 		},
 		"current_channel": {
@@ -31,7 +31,7 @@
 		"allow_power_on": {
 			"path": "menuitems/settings/update",
 			"body": {
-				"values":[{"value":{"Nodeid":2131230736, "data": {"selected_item":1}}}]
+				"values": [ { "value": { "Nodeid": 2131230736, "data": { "selected_item": 1 } } } ]
 			}
 		},
 		"ambilight_on": {
@@ -222,17 +222,17 @@
 		"ambilight_brightness": {
 			"path": "menuitems/settings/update",
 			"body": {
-				"values": [{
-					"value": {
-						"Nodeid": 2131230769,
-						"Controllable": "true",
-						"Available": "true",
-						"string_id": "Brightness",
-						"data": {
+				"values": [ {
+						"value": {
+							"Nodeid": 2131230769,
+							"Controllable": "true",
+							"Available": "true",
+							"string_id": "Brightness",
+							"data": {
 
+							}
 						}
-					}
-				}]
+					} ]
 			}
 		},
 		"ambilight_color": {
@@ -257,14 +257,14 @@
 		"ambihue_on": {
 			"path": "HueLamp/power",
 			"body": {
-        "power": "On"
-      }
+				"power": "On"
+			}
 		},
 		"ambihue_off": {
 			"path": "HueLamp/power",
 			"body": {
-        "power": "Off"
-      }
+				"power": "Off"
+			}
 		},
 		"standby": {
 			"path": "input/key",
@@ -562,37 +562,37 @@
 		},
 		"update_settings": {
 			"path": "menuitems/settings/update"
-    },
-    "google_assistant": {
-      "path": "activities/launch",
-      "body":  { 
-        "intent": {
-          "extras": {"query": ""}, 
-          "action": "Intent {  act=android.intent.action.ASSIST cmp=com.google.android.katniss/com.google.android.apps.tvsearch.app.launch.trampoline.SearchActivityTrampoline flg=0x10200000 }", 
-          "component": {
-            "packageName":"com.google.android.katniss",
-            "className":"com.google.android.apps.tvsearch.app.launch.trampoline.SearchActivityTrampoline"
-          }
-        }
-      }
-    },
-    "input_hdmi_1": {
-      "body": {
-        "query": "HDMI 1"
-      }
-    },
-    "input_hdmi_2": {
-      "body": {
-        "query": "HDMI 2"
-      }    },
-    "input_hdmi_3": {
-      "body": {
-        "query": "HDMI 3"
-      }    },
-    "input_hdmi_4": {
-      "body": {
-        "query": "HDMI 4"
-      }
-    }    
+		},
+		"google_assistant": {
+			"path": "activities/launch",
+			"body": {
+				"intent": {
+					"extras": { "query": "" },
+					"action": "Intent {  act=android.intent.action.ASSIST cmp=com.google.android.katniss/com.google.android.apps.tvsearch.app.launch.trampoline.SearchActivityTrampoline flg=0x10200000 }",
+					"component": {
+						"packageName": "com.google.android.katniss",
+						"className": "com.google.android.apps.tvsearch.app.launch.trampoline.SearchActivityTrampoline"
+					}
+				}
+			}
+		},
+		"input_hdmi_1": {
+			"body": {
+				"query": "HDMI 1"
+			}
+		},
+		"input_hdmi_2": {
+			"body": {
+				"query": "HDMI 2"
+			} },
+		"input_hdmi_3": {
+			"body": {
+				"query": "HDMI 3"
+			} },
+		"input_hdmi_4": {
+			"body": {
+				"query": "HDMI 4"
+			}
+		}
 	}
 }
