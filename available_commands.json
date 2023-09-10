@@ -2,7 +2,9 @@
 	"power": {
 		"power_on": {
 			"path": "apps/ChromeCast"
-		}
+		},
+		"power_off": { },
+		"wake_on_lan": { }
 	},
 	"get": {
 		"ambihue_status": {

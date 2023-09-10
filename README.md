@@ -198,6 +198,8 @@ Any passed arguments will override the settings in `settings.ini` without overwr
 1. `power_on` - Turns on the TV even if it's in a deep sleep mode. You might need to run `allow_power_on` first, although it was not needed for me.
 1. `allow_power_on` - Allows to remotely power on the TV via chromecast requests.
 1. `google_assistant` - Allows to pass requests to Google Assistant if your model supports it. Requires a `--body` argument containing a `query` with the command that you want to pass to Google Assistant. See example below.
+1. `wake_on_lan` - Attempts to wake the TV via WOL (must be enabled in TV settings). Executing `power_on` on non-Android TVs will execute this command.
+1. `power_off` - Switches TV off - fails if already off.
 
 **Examples of using the built-in commands:**
 

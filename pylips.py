@@ -7,7 +7,10 @@ import json
 import os
 import platform
 import random
+import re
+import socket
 import string
+import struct
 import subprocess
 import sys
 import time
@@ -70,6 +73,9 @@ class Pylips:
             pass
 
         class ConnectionError(ConnectionError):
+            pass
+
+        class PowerstateError(ConnectionError):
             pass
 
         class PairingError(Exception):
@@ -146,6 +152,19 @@ class Pylips:
                 else:
                     raise Pylips.Ex.ConnectionError("IP '" + self.config["TV"]["host"] + "' offline")
 
+        #  populate mac address for WOL
+        if len(self.config["TV"]["mac"]) == 0:
+            try:
+                ip_info = subprocess.check_output(["arp", "-n", self.config["TV"]["host"]]).decode('UTF-8')
+                mac = self.format_mac_address(re.search(r"(([a-f\d]{1,2}\:){5}[a-f\d]{1,2})", ip_info).groups()[0])
+                self.config["TV"]["mac"] = mac
+                with open(ini_file, "w") as configfile:
+                    self.config.write(configfile)
+                eprint(f"Updated TV MAC address: '{self.config['TV']['mac']}'")
+            except:
+                eprint(f"Unable to update TV MAC address: '--command=wake_on_lan' will be unavailable unless '[TV]/mac' set within '{ini_file}'\n",
+                       verbose=self.verbose)
+
         #  load API commands
         with open(os.path.dirname(os.path.realpath(__file__))+"/available_commands.json") as json_file:
             self.available_commands = json.load(json_file)
@@ -183,6 +202,16 @@ class Pylips:
         else:
             raise Pylips.Ex.ParamError("No '--command' arg provided (alternatively enable '[DEFAULT]/mqtt_listen' within '" + ini_file + "')")
 
+    def format_mac_address(self,
+                           mac: str):
+        if len(mac) == 12:
+            return mac
+        pairs = mac.split(mac[2])
+        for i, pair in enumerate(pairs):
+            if len(pair) != 2:
+                pairs[i] = pair.zfill(2)
+        return ('').join(pairs)
+
     def is_online(self,
                   host: str,
                   verbose=True,
@@ -214,6 +243,117 @@ class Pylips:
                        verbose=verbose)
                 time.sleep(retry_delay)
         return False
+
+    def try_wake_on_lan(self,
+                        verbose=True) -> str:
+        """
+        Attempts to wake TV then power on if `powerstate == 'Standby'`.
+        :raises:
+        - :class:`Pylips.Ex.ConnectionError` if TV already on.
+        - :class:`Pylips.Ex.ConfigError` if no MAC address in config file.
+        """
+        #  build WOL packet
+        mac = self.config["TV"]["mac"]
+        if not mac:
+            raise Pylips.Ex.ConfigError("No MAC address to construct WOL packet: set '[TV]/mac' within '" + self.ini_file + "'")
+        mac = self.format_mac_address(mac)
+        data = ''.join(['FFFFFFFFFFFF', mac * 16])
+        send_data = b''
+        for i in range(0, len(data), 2):
+            send_data = b''.join([send_data, struct.pack('B', int(data[i: i + 2], 16))])
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.settimeout(self.timeout)
+
+        def send_wol_packet():
+            eprint(f"TV OFFLINE: sending WOL packet to '{mac}'…",
+                   verbose=verbose)
+            try:
+                sock.sendto(send_data, ("255.255.255.255", 9))
+                eprint("WOL packet SENT ✔",
+                       verbose=verbose)
+            except:
+                eprint("WOL packet FAILED ✘",
+                       verbose=verbose)
+
+        #  attempt wakeup
+        result = None
+        powerstate_status = self.get("powerstate",
+                                     verbose=self.verbose,
+                                     print_response=int(verbose)*2,
+                                     num_retries=10,
+                                     retry_delay=self.timeout,
+                                     on_attempt_fail=send_wol_packet)
+        if powerstate_status != None:
+            eprint("TV ONLINE",
+                   verbose=verbose)
+            if "Standby" in powerstate_status:
+                result = self.run_command("standby",
+                                          verbose=verbose,
+                                          print_response=False,
+                                          num_retries=1)
+            elif "On" in powerstate_status:
+                raise Pylips.Ex.PowerstateError("TV already powered on")
+        return result
+
+    def wake_on_lan(self,
+                    verbose=True,
+                    num_retries: int = None,
+                    retry_delay: float = 0,
+                    fallback_delay: float = 1):
+        """
+        Attempts to wake TV (includes retry logic & fallback check after delay).
+        :raises: :class:`Pylips.Ex.ConnectionError` if TV already on.
+        """
+        max_retries = num_retries if num_retries else self.num_retries
+        retries = 1
+        result = None
+        while retries <= max_retries:
+            eprint(f"\n> (WAKE attempt {retries}/{max_retries})",
+                   verbose=verbose)
+            try:
+                self.try_wake_on_lan(verbose)
+                eprint(f"Waiting {fallback_delay}s before fallback…",
+                       verbose=verbose)
+                time.sleep(fallback_delay)
+                eprint(f"\n> (WAKE fallback {retries}/{max_retries})",
+                       verbose=verbose)
+                result = self.try_wake_on_lan(verbose)
+                if result:
+                    eprint("WAKE SUCCESS ✔",
+                           verbose=verbose)
+                    print(result)
+                    break
+            except Pylips.Ex.PowerstateError as e:
+                raise e
+            except:
+                pass
+            eprint("WAKE FAILED ✘",
+                   verbose=verbose)
+            retries += 1
+            if retry_delay and retries <= max_retries:
+                eprint(f"Waiting {retry_delay}s before retry…",
+                       verbose=verbose)
+                time.sleep(retry_delay)
+        return result
+
+    def explicit_power_off(self,
+                           verbose=True) -> str:
+        """
+        Switches off TV - fails if already off.
+        :raises: :class:`Pylips.Ex.ConnectionError` if TV already off.
+        """
+        try:
+            powerstate_status = self.get("powerstate",
+                                         verbose=self.verbose,
+                                         print_response=int(verbose)*2,
+                                         num_retries=1)
+            if powerstate_status and "On" in powerstate_status:
+                return self.run_command("standby",
+                                        verbose=verbose)
+        except Pylips.Ex.ConnectionError:
+            pass
+        raise Pylips.Ex.PowerstateError("TV already powered off")
 
     def find_api_version(self,
                          verbose=True,
@@ -541,9 +681,18 @@ class Pylips:
                                  retry_delay=retry_delay,
                                  on_attempt_fail=on_attempt_fail)
         elif command in self.available_commands["power"]:
-            return session.post(f"http://{self.config['TV']['host']}:8008/{self.available_commands['power'][command]['path']}",
-                                verify=False,
-                                timeout=self.timeout)
+            if command == "power_on":
+                if self.config["TV"]["protocol"] == "https://":
+                    return session.post(f"http://{self.config['TV']['host']}:8008/{self.available_commands['power'][command]['path']}",
+                                        verify=False,
+                                        timeout=self.timeout)
+                return self.wake_on_lan(verbose,
+                                        num_retries=int(self.config["DEFAULT"]["wake_retries"]))
+            elif command == "wake_on_lan":
+                return self.wake_on_lan(verbose,
+                                        num_retries=int(self.config["DEFAULT"]["wake_retries"]))
+            elif command == "power_off":
+                return self.explicit_power_off(verbose)
         raise Pylips.Ex.ParamError("Unknown command: '" + command + "'")
 
     def mqtt_post_callback(self,
@@ -753,8 +902,9 @@ if __name__ == '__main__':
     except (Pylips.Ex.ConfigError,
             Pylips.Ex.ParamError,
             Pylips.Ex.ConnectionError,
+            Pylips.Ex.PowerstateError,
             Pylips.Ex.PairingError) as e:
-        if type(e) in [Pylips.Ex.ConnectionError, Pylips.Ex.PairingError]:
+        if type(e) in [Pylips.Ex.PowerstateError, Pylips.Ex.ConnectionError, Pylips.Ex.PairingError]:
             print(json.dumps({"error": str(e)}, indent=4))
         eprint(e)
         exit(1)
